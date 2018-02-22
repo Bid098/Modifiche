@@ -1,0 +1,191 @@
+//assegnazione dell'enumeratore Error
+ErrorFoundedLocal:= EnumError.NoneEmergency;
+ControlledStopEmergency:=FALSE;
+QuickStopEmergency:=FALSE;
+
+//emergenza dovuta al feedback del ciruito
+IF (GVL_Module_0_IN.IN_EmergencyCircuitFeedbackOK AND GVL_Function_Variables.DisableAlarm[0]=0) THEN  
+	ErrorFoundedLocal := EnumError.Button_EmegencyCircuitFeedbackOK;
+	QuickStopEmergency:=TRUE;
+END_IF
+
+//emergenza chiave
+IF (GVL_Module_Preventa_IN.IN_S1_Active AND GVL_Module_Preventa_IN.IN_S2_Active AND GVL_Module_Preventa_IN.IN_S4_Active AND NOT GVL_Module_Preventa_IN.IN_Output_On AND NOT GVL_Module_Preventa_IN.IN_Start) THEN
+	ErrorFoundedLocal:=EnumError.Preventa_Start_Missing;
+	QuickStopEmergency:=TRUE;
+END_IF
+
+FOR i:=0 TO 9 DO 
+	ErrorOnMotor[i]:=FALSE;
+END_FOR
+
+//Errore modbus
+IF (BL100_Read_Input.ErrorModbus)THEN
+	ErrorFoundedLocal:=EnumError.Modbus_Disable;
+	QuickStopEmergency:=TRUE;
+END_IF
+
+//Errori canali della preventa
+IF (NOT GVL_Module_Preventa_IN.IN_S1_Active or NOT GVL_Module_Preventa_IN.IN_S2_Active or NOT GVL_Module_Preventa_IN.IN_S4_Active) THEN
+	ErrorFoundedLocal:=EnumError.Emergency_ChannelPreventa;
+	QuickStopEmergency:=TRUE;
+END_IF
+
+//errore per il contenitore che è pieno
+IF (GVL_Module_1_IN.IN_MaxLevelTank AND GVL_Function_Variables.DisableAlarm[5]=0) THEN 
+	ErrorFoundedLocal:=EnumError.LiterCounterMax;
+	IN_Trip[8]:=TRUE;  //termica inverter
+END_IF
+
+//Errore Alla Spremitrice
+IF (GVL_Function_Variables.SoftStartStatusWordRead=ESoftStart_Status.Enable)THEN
+	ErrorFoundedLocal:=EnumError.SoftStartError;	
+	GVL_Function_Variables.ButtonStopWork:=TRUE;
+	QuickStopEmergency:=TRUE;
+	GVL_Function_Variables.SoftStartCommand:=ECommand_SoftStart.FreewheelStop;
+	GVL_Module_Preventa_OUT.OUT_Reset_Module:=TRUE;
+END_IF
+
+//Errore Alla Spremitrice
+IF (GVL_Function_Variables.SoftStartStatusWordRead=ESoftStart_Status.Emergency)THEN
+	ErrorFoundedLocal:=EnumError.SoftStartError;
+	GVL_Function_Variables.ButtonStopWork:=TRUE;
+	QuickStopEmergency:=TRUE;
+	GVL_Function_Variables.SoftStartCommand:=ECommand_SoftStart.FreewheelStop;
+END_IF
+
+//Errore Al Fast Counter
+IF (BL210_FastCounter.TimerToSeeError.Q)THEN
+	ErrorFoundedLocal:=EnumError.SoftStartLongTimeOverstressed;
+	QuickStopEmergency:=TRUE;
+	GVL_Function_Variables.SoftStartCommand:=ECommand_SoftStart.FreewheelStop;
+	GVL_Function_Variables.StartSoftStart:=FALSE;
+END_IF
+
+//emergenza che evita l'accensione della macchina in caso i 24 volt di alimentazione dei moduli non siano rispetti      
+IF (NOT GVL_Module_1_IN.IN_24VDC_Ok AND GVL_Function_Variables.DisableAlarm[1]=0) THEN 
+	ErrorFoundedLocal:=EnumError.V24DC_Ok;
+	//QuickStopEmergency:=TRUE;
+	IN_Trip[8]:=TRUE;  //termica inverter
+END_IF
+//errore per l'alta temperatura interna
+IF (NOT GVL_Module_1_IN.IN_OverheatingInternationalBoard AND GVL_Function_Variables.DisableAlarm[2]=0) THEN 
+	ErrorFoundedLocal:=EnumError.Emergency_OverHeatingInternationalBoard;
+	//QuickStopEmergency:=TRUE;
+	IN_Trip[8]:=TRUE;  //termica inverter
+END_IF
+
+//Allarmi termici
+//emergenza dovuta alla protezione termica sul fancoil 
+IF (NOT GVL_Module_1_IN.IN_ThermalProtectionCDZandFAN AND GVL_Function_Variables.DisableAlarm[3]=0) THEN
+	ErrorFoundedLocal := EnumError.Emergency_ThermalProtectionCDZandFAN;
+	IN_Trip[8]:=TRUE;  //termica inverter
+END_IF
+
+//emergenza dovuta alla protezione termica della sonda del motore a vite
+IF (NOT GVL_Module_1_IN.IN_ThermalProbeFeedScrewMotor) THEN
+	ErrorFoundedLocal := EnumError.Emergency_ThermalProbeFeedScrewMotor;
+	IN_Trip[8]:=TRUE;  //termica inverter
+END_IF
+
+//emergenza dovuta alla protezione termica della sonda sonda del motore a vite per l'estrazione
+IF (NOT GVL_Module_1_IN.IN_ThermalProbeExtractorScrewMotor) THEN
+	ErrorFoundedLocal := EnumError.Emergency_ThermalProbeExtractorScrewMotor;
+	IN_Trip[9]:=TRUE;  //termica softstart
+END_IF
+
+//emergenza dovuta alla protezione termica della sonda ausiliaria per l'estrazione
+IF (NOT GVL_Module_1_IN.IN_ThermalProbeAuxiliaryScrewMotor) THEN
+	ErrorFoundedLocal := EnumError.Emergency_ThermalProbeAuxiliaryScrewMotor;
+	IN_Trip[2]:=TRUE;  //termica umido 2 
+END_IF
+
+IF (NOT GVL_Module_1_IN.IN_ThermalProbeSqweezingGroupMotor) THEN 
+	ErrorFoundedLocal := EnumError.Emergrancy_TermalProbeSqueezingGroupMotor;
+	IN_Trip[4]:=TRUE;
+END_IF	
+
+//Switch
+//emergenza dello switch magnetico della porta frontale a sinistra
+IF (GVL_Module_0_IN.IN_SwitchFrontDoorLeft) THEN
+	ErrorFoundedLocal := EnumError.Button_SwitchFrontDoorLeft_Pushed;
+	QuickStopEmergency:=TRUE;
+END_IF
+//emergenza dello switch magnetico della porta frontale a destra
+IF (GVL_Module_0_IN.IN_SwitchFrontDoorRight) THEN
+	ErrorFoundedLocal := EnumError.Button_SwitchFrontDoorRight_Pushed;
+	QuickStopEmergency:=TRUE;
+END_IF
+//emergenza dello switch magnetico della porta dietro a sinistra
+IF (GVL_Module_0_IN.IN_SwitchRoarSideDoorLeft) THEN
+	ErrorFoundedLocal := EnumError.Button_SwitchSideDoorLeft_Pushed;
+	QuickStopEmergency:=TRUE;
+END_IF
+//emergenza dello switch magnetico della porta frontale a destra
+IF (GVL_Module_0_IN.IN_SwitchRoarSideDoorRight) THEN
+	ErrorFoundedLocal := EnumError.Button_SwitchSideDoorRight_Pushed;
+	QuickStopEmergency:=TRUE;
+END_IF
+//emergenza dello switch magnetico della porta superiore
+IF (GVL_Module_0_IN.IN_SwitchUpDoor) THEN
+	ErrorFoundedLocal := EnumError.Button_SwitchUpDoor_Pushed;
+	QuickStopEmergency:=TRUE;
+END_IF
+//emergenza dello switch magnetico della porta per l'ispezione superiore
+IF (GVL_Module_0_IN.IN_SwitchInspectionUpDoor) THEN
+	ErrorFoundedLocal := EnumError.Button_SwitchInspectionUpDoor_Pushed;
+	QuickStopEmergency:=TRUE;
+END_IF
+//Funghi
+//emergenza nel bottone della porta di fronte a destra
+IF (GVL_Module_0_IN.IN_PushButtonEmergencyFrontRight) THEN
+	ErrorFoundedLocal := EnumError.Button_EmergencyFrontRight_Pushed;
+	QuickStopEmergency:=TRUE;
+END_IF
+//emergenza nel bottone della porta di fronte a sinistra
+IF (GVL_Module_0_IN.IN_PushButtonEmergencyFrontLeft) THEN
+	ErrorFoundedLocal := EnumError.Button_EmergencyFrontLeft_Pushed;
+	QuickStopEmergency:=TRUE;
+END_IF
+
+//emergenza nel bottone della porta dietro a destra
+IF (GVL_Module_0_IN.IN_PushButtonEmergencyBottomRight) THEN
+	ErrorFoundedLocal := EnumError.Button_EmergencyRearRight_Pushed;
+	QuickStopEmergency:=TRUE;
+END_IF
+
+//emergenza nel bottone della porta dietro a sinistra
+IF (GVL_Module_0_IN.IN_PushButtonEmergencyBottomLeft) THEN
+	ErrorFoundedLocal := EnumError.Button_EmergencyRearLeft_Pushed;
+	QuickStopEmergency:=TRUE;
+END_IF
+
+//emergenza nel bottone esterno alla macchina
+IF (GVL_Module_0_IN.IN_ExternalEmergency) THEN
+	ErrorFoundedLocal := EnumError.Button_ButtonExternalEmergency_Pushed;
+	QuickStopEmergency:=TRUE;
+END_IF
+
+IF (BL210_FastCounter.ErrorFastCounter)THEN
+	ErrorFoundedLocal := EnumError.FastCounterError;
+	QuickStopEmergency:=TRUE;
+END_IF
+
+IF(ErrorFoundedLocal<>EnumError.NoneEmergency)THEN
+	GVL_RemoteControl.CommandFromOtherPLC:=FALSE;
+END_IF
+
+GVL_Function_Variables.ErrorsFounded:=ErrorFoundedLocal;
+IF (QuickStopEmergency)THEN
+	IN_Automatic_Work:=0;
+	IN_Manual_Work:=0;
+	IN_None_Work:=1;
+	IN_Config_Work:=0;	
+END_IF
+
+
+GVL_Module_2_OUT.OUT_SignalMotorOKToResetPreventaModule:=TRUE and GVL_Function_Variables.ErrorsFounded=EnumError.Preventa_Start_Missing;
+
+GVL_IN_OUT_NEW.OUT_Emergency:= NOT QuickStopEmergency;  //emergenza
+
+//GVL_IN_OUT_NEW.OUT_Fault:=NOT ControlledStopEmergency;  //guasto
